@@ -107,12 +107,16 @@ export const QUERIES = {
     query GetIncomeAccounts($businessId: ID!) {
       business(id: $businessId) {
         id
-        accounts(types: [INCOME], page: 1, pageSize: 20) {
+        accounts(page: 1, pageSize: 50) {
           edges {
             node {
               id
               name
               type {
+                name
+                value
+              }
+              subtype {
                 name
                 value
               }

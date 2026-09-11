@@ -92,8 +92,20 @@ export async function POST(request: NextRequest) {
       );
       const accounts =
         accData?.business?.accounts?.edges?.map((edge: any) => edge.node) || [];
-      if (accounts.length > 0) {
-        defaultIncomeAccountId = accounts[0].id;
+
+      // Find an account with type "INCOME" or name containing Sales/Service/Revenue/Income
+      const incomeAcc =
+        accounts.find(
+          (a: any) =>
+            a.type?.value?.toUpperCase() === "INCOME" ||
+            a.subtype?.value?.toUpperCase()?.includes("INCOME") ||
+            a.name?.toLowerCase()?.includes("sales") ||
+            a.name?.toLowerCase()?.includes("income") ||
+            a.name?.toLowerCase()?.includes("service")
+        ) || accounts[0];
+
+      if (incomeAcc) {
+        defaultIncomeAccountId = incomeAcc.id;
       }
     } catch (e) {
       console.warn("Could not fetch income accounts:", e);
@@ -118,8 +130,6 @@ export async function POST(request: NextRequest) {
             businessId,
             name: productName.substring(0, 100),
             unitPrice: Number(item.unitPrice) || 0,
-            isSold: true,
-            isBought: false,
           };
           if (defaultIncomeAccountId) {
             prodInput.incomeAccountId = defaultIncomeAccountId;
