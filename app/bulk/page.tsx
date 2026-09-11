@@ -25,6 +25,7 @@ export default function BulkInvoicingPage() {
     "Web Application Development"
   );
   const [globalPrice, setGlobalPrice] = useState<number>(250);
+  const [delaySeconds, setDelaySeconds] = useState<number>(3);
   const [dueDateDays, setDueDateDays] = useState<number>(14);
   const [emailSubject, setEmailSubject] = useState(
     "Invoice {invoiceNumber} for {customerName}"
@@ -185,7 +186,7 @@ export default function BulkInvoicingPage() {
 
     const invoice = invoiceData.invoice;
 
-    // 2. Send Invoice Email if email exists
+    // 2. Send Invoice Email if email exists (with automatic backoff retry if rate limited)
     if (item.customerEmail) {
       const personalizedSubject = emailSubject
         .replace(/{customerName}/g, item.customerName)
@@ -198,25 +199,45 @@ export default function BulkInvoicingPage() {
         .replace(/{amount}/g, String(finalAmount))
         .replace(/{dueDate}/g, dueDate);
 
-      const sendRes = await fetch("/api/wave/invoices/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(customToken ? { "x-wave-token": customToken } : {}),
-        },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          to: [item.customerEmail],
-          subject: personalizedSubject,
-          message: personalizedBody,
-          attachPDF,
-        }),
-      });
+      let sendSuccess = false;
+      let lastError = "";
 
-      const sendData = await sendRes.json();
-      if (!sendRes.ok || !sendData.success) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const sendRes = await fetch("/api/wave/invoices/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(customToken ? { "x-wave-token": customToken } : {}),
+          },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            to: [item.customerEmail],
+            subject: personalizedSubject,
+            message: personalizedBody,
+            attachPDF,
+          }),
+        });
+
+        const sendData = await sendRes.json();
+        if (sendRes.ok && sendData.success) {
+          sendSuccess = true;
+          break;
+        }
+
+        lastError = sendData.error || "Failed to send email";
+
+        // If rate limited by Wave, sleep for 3-5 seconds and retry
+        if (lastError.toLowerCase().includes("rate limit") && attempt < 3) {
+          console.warn(`Wave rate limit hit for ${item.customerEmail}. Waiting ${attempt * 3}s before retry...`);
+          await new Promise((r) => setTimeout(r, attempt * 3000));
+        } else {
+          break;
+        }
+      }
+
+      if (!sendSuccess) {
         throw new Error(
-          `Invoice created (#${invoice.invoiceNumber}), but email failed: ${sendData.error}`
+          `Invoice created (#${invoice.invoiceNumber}), but email failed: ${lastError}`
         );
       }
     }
@@ -270,7 +291,9 @@ export default function BulkInvoicingPage() {
         );
       }
 
-      await new Promise((r) => setTimeout(r, 600));
+      // Configurable pacing delay between invoices (default 3 seconds to avoid Wave rate limits)
+      const delayMs = Math.max(1000, Number(delaySeconds || 3) * 1000);
+      await new Promise((r) => setTimeout(r, delayMs));
     }
 
     setIsProcessing(false);
@@ -352,7 +375,7 @@ export default function BulkInvoicingPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
               Global Product / Service Title *
@@ -365,13 +388,13 @@ export default function BulkInvoicingPage() {
               className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
             <p className="text-[11px] text-slate-500 mt-1">
-              This exact title will be created and displayed as the primary bold product on every invoice.
+              This exact title will be created and displayed on every invoice.
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Global Price per Invoice ($) *
+              Global Price ($) *
             </label>
             <input
               type="number"
@@ -381,7 +404,24 @@ export default function BulkInvoicingPage() {
               className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
             <p className="text-[11px] text-slate-500 mt-1">
-              Every customer in the list will be charged this amount.
+              Charged to each customer.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Pacing Delay (Sec) *
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="30"
+              value={delaySeconds}
+              onChange={(e) => setDelaySeconds(Number(e.target.value))}
+              className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Delay between sends (prevents rate limits).
             </p>
           </div>
         </div>
