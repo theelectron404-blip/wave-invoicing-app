@@ -84,7 +84,8 @@ export default function BulkInvoicingPage() {
       let customerEmail = "";
       let amount = globalPrice;
       let description = globalProductName;
-      let invoiceNumber = `INV-${new Date().getFullYear()}-${String(idx + 101).padStart(4, "0")}`;
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      let invoiceNumber = `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${randomSuffix}`;
 
       if (parts.length === 1) {
         // Just email passed line-by-line: "john@example.com"
@@ -236,13 +237,13 @@ export default function BulkInvoicingPage() {
 
     setIsProcessing(true);
 
-    for (let i = currentIndex; i < queue.length; i++) {
+    for (let i = 0; i < queue.length; i++) {
       const item = queue[i];
       if (item.status === "success") continue;
 
       setQueue((prev) =>
         prev.map((q, idx) =>
-          idx === i ? { ...q, status: "processing" } : q
+          idx === i ? { ...q, status: "processing", errorMessage: undefined } : q
         )
       );
       setCurrentIndex(i);
@@ -255,6 +256,7 @@ export default function BulkInvoicingPage() {
           )
         );
       } catch (err: any) {
+        console.error("Bulk processing item error:", err);
         setQueue((prev) =>
           prev.map((q, idx) =>
             idx === i
@@ -567,7 +569,7 @@ export default function BulkInvoicingPage() {
                     <th className="p-2.5">Email &amp; Recipient</th>
                     <th className="p-2.5">Product Title</th>
                     <th className="p-2.5 text-right">Amount</th>
-                    <th className="p-2.5 text-center">Status</th>
+                    <th className="p-2.5 text-center">Status / Details</th>
                     <th className="p-2.5 text-right">Action</th>
                   </tr>
                 </thead>
@@ -609,12 +611,18 @@ export default function BulkInvoicingPage() {
                             </span>
                           )}
                           {item.status === "error" && (
-                            <span
-                              title={item.errorMessage}
-                              className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center justify-center gap-1 cursor-help"
-                            >
-                              <AlertCircle className="w-2.5 h-2.5 text-red-600" /> Failed
-                            </span>
+                            <div className="flex flex-col items-center">
+                              <span
+                                className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center justify-center gap-1"
+                              >
+                                <AlertCircle className="w-2.5 h-2.5 text-red-600" /> Failed
+                              </span>
+                              {item.errorMessage && (
+                                <span className="text-[10px] text-red-600 max-w-[200px] break-words text-left mt-1 block">
+                                  {item.errorMessage}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="p-2.5 text-right">
