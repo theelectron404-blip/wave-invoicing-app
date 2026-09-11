@@ -219,12 +219,13 @@ export default function InvoiceForm({
               <div className="col-span-12 sm:col-span-5">
                 <input
                   type="text"
-                  placeholder="Item Name / Description"
-                  value={item.description}
-                  onChange={(e) =>
-                    handleItemChange(index, "description", e.target.value)
-                  }
-                  className="w-full border border-slate-300 rounded-md p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  placeholder="Product / Item Name (e.g. Web Development)"
+                  value={item.name || item.description}
+                  onChange={(e) => {
+                    handleItemChange(index, "name", e.target.value);
+                    handleItemChange(index, "description", e.target.value);
+                  }}
+                  className="w-full border border-slate-300 rounded-md p-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white font-medium"
                 />
               </div>
 

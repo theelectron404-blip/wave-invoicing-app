@@ -101,22 +101,23 @@ export async function POST(request: NextRequest) {
 
     for (const item of items) {
       let productId = item.productId;
+      const productName = (item.name || item.description || "General Service").trim();
+      const extraDescription = (item.description && item.name && item.description !== item.name) ? item.description.trim() : "";
 
-      // If no productId, try to find an existing matching product or create a new one
+      // If no productId, try to find an existing matching product or create a new one with this exact name
       if (!productId) {
-        const itemTitle = (item.description || item.name || "General Service").trim();
         const existing = existingProducts.find(
-          (p: any) => p.name.toLowerCase() === itemTitle.toLowerCase()
+          (p: any) => p.name.toLowerCase() === productName.toLowerCase()
         );
 
         if (existing) {
           productId = existing.id;
         } else {
-          // Auto-create product in Wave with the required incomeAccountId
+          // Auto-create product in Wave with the exact productName as the product title
           try {
             const prodInput: any = {
               businessId,
-              name: itemTitle.substring(0, 100),
+              name: productName.substring(0, 100),
               unitPrice: Number(item.unitPrice) || 0,
             };
             if (defaultIncomeAccountId) {
@@ -154,8 +155,8 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             error:
-              "Could not find or create a valid Product ID in Wave for item: " +
-              (item.description || item.name || "Custom Item") +
+              "Could not find or create a valid Product in Wave for: " +
+              productName +
               ". Please ensure your Wave account has at least one Sales/Income account or product.",
           },
           { status: 400 }
@@ -167,9 +168,12 @@ export async function POST(request: NextRequest) {
         quantity: Number(item.quantity) || 1,
         unitPrice: Number(item.unitPrice) || 0,
       };
-      if (item.description || item.name) {
-        itemInput.description = item.description || item.name;
+
+      // Only attach description if there is an actual extra sub-description
+      if (extraDescription) {
+        itemInput.description = extraDescription;
       }
+
       formattedItems.push(itemInput);
     }
 
