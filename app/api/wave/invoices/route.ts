@@ -6,9 +6,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const customToken = request.headers.get("x-wave-token") || undefined;
 
-    const {
+    let {
       businessId,
       customerId,
+      customerName,
+      customerEmail,
       invoiceNumber,
       invoiceDate,
       dueDate,
@@ -18,9 +20,41 @@ export async function POST(request: NextRequest) {
       footer,
     } = body;
 
-    if (!businessId || !customerId) {
+    if (!businessId) {
       return NextResponse.json(
-        { success: false, error: "businessId and customerId are required" },
+        { success: false, error: "businessId is required" },
+        { status: 400 }
+      );
+    }
+
+    // Auto-create customer in Wave if customerId not provided but customerName is provided
+    if (!customerId && customerName) {
+      try {
+        const custInput: any = {
+          businessId,
+          name: customerName.trim(),
+        };
+        if (customerEmail) custInput.email = customerEmail.trim();
+
+        const custRes = await waveGraphQLRequest<any>(
+          QUERIES.CREATE_CUSTOMER,
+          { input: custInput },
+          customToken
+        );
+
+        if (custRes?.customerCreate?.didSucceed && custRes?.customerCreate?.customer?.id) {
+          customerId = custRes.customerCreate.customer.id;
+        } else if (custRes?.customerCreate?.inputErrors?.length) {
+          console.warn("Wave customerCreate error:", custRes.customerCreate.inputErrors);
+        }
+      } catch (custErr) {
+        console.warn("Could not auto-create customer:", custErr);
+      }
+    }
+
+    if (!customerId) {
+      return NextResponse.json(
+        { success: false, error: "Customer information is required (provide customerId or customerName)" },
         { status: 400 }
       );
     }

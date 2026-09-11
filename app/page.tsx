@@ -168,10 +168,10 @@ export default function HomePage() {
 
   // Handle Save Draft only
   const handleSaveOnly = async () => {
-    if (!formData.businessId || !formData.customerId) {
+    if (!formData.businessId || (!formData.customerId && !formData.customerName)) {
       setActionStatus({
         type: "error",
-        message: "Please select both a Wave Business and a Customer.",
+        message: "Please select a Wave Business and provide a Customer Name.",
       });
       return;
     }
@@ -199,10 +199,10 @@ export default function HomePage() {
 
   // Handle Create AND Send via API
   const handleCreateAndSend = async () => {
-    if (!formData.businessId || !formData.customerId) {
+    if (!formData.businessId || (!formData.customerId && !formData.customerName)) {
       setActionStatus({
         type: "error",
-        message: "Please select both a Wave Business and a Customer.",
+        message: "Please select a Wave Business and provide a Customer Name.",
       });
       return;
     }

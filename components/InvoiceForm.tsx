@@ -105,28 +105,47 @@ export default function InvoiceForm({
         <div>
           <div className="flex justify-between items-center mb-1">
             <label className="block text-sm font-semibold text-slate-700">
-              Customer
+              Customer Name *
             </label>
             <button
               type="button"
               onClick={onOpenNewCustomerModal}
               className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
             >
-              <UserPlus className="w-3.5 h-3.5" /> + New Customer
+              <UserPlus className="w-3.5 h-3.5" /> Quick Modal
             </button>
           </div>
-          <select
-            value={formData.customerId}
-            onChange={(e) => handleCustomerSelect(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          >
-            <option value="">-- Select Wave Customer --</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.email ? `(${c.email})` : ""}
-              </option>
-            ))}
-          </select>
+
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="e.g. Acme Corp or John Doe (Auto-created in Wave)"
+              value={formData.customerName}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  customerId: "",
+                  customerName: e.target.value,
+                }))
+              }
+              className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+
+            {customers.length > 0 && (
+              <select
+                value={formData.customerId}
+                onChange={(e) => handleCustomerSelect(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-600 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">-- Or pick from existing {customers.length} Wave customers --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.email ? `(${c.email})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
       </div>
 

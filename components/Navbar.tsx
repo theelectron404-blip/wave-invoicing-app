@@ -32,13 +32,20 @@ export default function Navbar() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             <Link
               href="/"
               className="text-slate-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 transition"
             >
               <Send className="w-4 h-4" />
-              Create & Send
+              Single Invoice
+            </Link>
+            <Link
+              href="/bulk"
+              className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-3 py-2 rounded-md text-sm font-bold flex items-center gap-1.5 border border-blue-200 transition"
+            >
+              <FileText className="w-4 h-4 text-blue-600" />
+              Bulk Send (200-300+)
             </Link>
             <Link
               href="/settings"

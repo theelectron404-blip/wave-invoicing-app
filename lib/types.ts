@@ -61,18 +61,15 @@ export interface WaveInputError {
   path: string[];
 }
 
-export interface WaveInvoice {
+export interface BulkQueueItem {
   id: string;
-  invoiceNumber: string;
-  status: string;
-  viewUrl: string;
-  pdfUrl?: string;
-  total: {
-    raw: number;
-    value: string;
-  };
-  customer?: {
-    name: string;
-    email: string;
-  };
+  customerName: string;
+  customerEmail: string;
+  amount: number;
+  description?: string;
+  invoiceNumber?: string;
+  status: "pending" | "processing" | "success" | "error";
+  invoiceUrl?: string;
+  errorMessage?: string;
 }
+
