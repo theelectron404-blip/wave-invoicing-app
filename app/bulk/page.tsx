@@ -4,16 +4,14 @@ import { useState, useEffect } from "react";
 import {
   Users,
   Play,
-  Pause,
-  RefreshCw,
   Download,
   FileSpreadsheet,
   CheckCircle2,
   AlertCircle,
   Loader2,
   ExternalLink,
-  Mail,
-  Copy,
+  Zap,
+  Tag,
 } from "lucide-react";
 import { Business, BulkQueueItem } from "@/lib/types";
 import Link from "next/link";
@@ -22,18 +20,11 @@ export default function BulkInvoicingPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
 
-  // Bulk input raw text
-  const [rawInput, setRawInput] = useState("");
-  const [queue, setQueue] = useState<BulkQueueItem[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  // Global settings for the bulk batch
-  const [defaultItemName, setDefaultItemName] = useState(
-    "Monthly Service & Consulting Fee"
+  // Global settings for the bulk batch (Product & Price applied to all)
+  const [globalProductName, setGlobalProductName] = useState(
+    "Web Application Development"
   );
-  const [defaultPrice, setDefaultPrice] = useState<number>(150);
+  const [globalPrice, setGlobalPrice] = useState<number>(250);
   const [dueDateDays, setDueDateDays] = useState<number>(14);
   const [emailSubject, setEmailSubject] = useState(
     "Invoice {invoiceNumber} for {customerName}"
@@ -42,6 +33,12 @@ export default function BulkInvoicingPage() {
     "Hi {customerName},\n\nPlease find your invoice {invoiceNumber} for ${amount}. You can pay securely online using the payment link below.\n\nThank you for your business!"
   );
   const [attachPDF, setAttachPDF] = useState(true);
+
+  // Bulk input raw text & queue
+  const [rawInput, setRawInput] = useState("");
+  const [queue, setQueue] = useState<BulkQueueItem[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   // Fetch businesses on mount
   useEffect(() => {
@@ -63,7 +60,7 @@ export default function BulkInvoicingPage() {
     fetchBusinesses();
   }, []);
 
-  // Parse raw text (CSV / TSV from Excel / Comma separated)
+  // Parse raw text (Emails list or CSV/TSV from Excel)
   const parseRawInput = () => {
     if (!rawInput.trim()) return;
 
@@ -74,49 +71,44 @@ export default function BulkInvoicingPage() {
       const trimmed = line.trim();
       if (!trimmed) return;
 
-      // Handle tab-separated (from Excel) or comma-separated
       let parts: string[] = [];
       if (trimmed.includes("\t")) {
         parts = trimmed.split("\t");
       } else {
-        // Simple comma split
         parts = trimmed.split(",");
       }
 
       parts = parts.map((p) => p.trim().replace(/^["']|["']$/g, ""));
 
-      // Intelligent Detection:
-      // If the line only contains an email address (e.g. "alex@company.com" or "alex@company.com, 250")
       let customerName = "";
       let customerEmail = "";
-      let amount = defaultPrice;
-      let description = defaultItemName;
+      let amount = globalPrice;
+      let description = globalProductName;
       let invoiceNumber = `INV-${new Date().getFullYear()}-${String(idx + 101).padStart(4, "0")}`;
 
       if (parts.length === 1) {
         // Just email passed line-by-line: "john@example.com"
         if (parts[0].includes("@")) {
           customerEmail = parts[0];
-          // Auto-generate name from username part of email: e.g. "john.smith@..." -> "John Smith"
           const rawName = parts[0].split("@")[0].replace(/[._-]/g, " ");
           customerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
         } else {
           customerName = parts[0];
         }
       } else if (parts[0].includes("@")) {
-        // Line starts with email: "john@example.com, 250, Custom Item"
+        // Line starts with email: "john@example.com, 250"
         customerEmail = parts[0];
         const rawName = parts[0].split("@")[0].replace(/[._-]/g, " ");
         customerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-        amount = Number(parts[1]) || defaultPrice;
+        amount = Number(parts[1]) || globalPrice;
         if (parts[2]) description = parts[2];
         if (parts[3]) invoiceNumber = parts[3];
       } else {
         // Standard format: "Customer Name, Email, Price, Description, Inv#"
         customerName = parts[0] || `Customer ${idx + 1}`;
         customerEmail = parts[1] || "";
-        amount = Number(parts[2]) || defaultPrice;
-        description = parts[3] || defaultItemName;
+        amount = Number(parts[2]) || globalPrice;
+        description = parts[3] || globalProductName;
         if (parts[4]) invoiceNumber = parts[4];
       }
 
@@ -134,13 +126,20 @@ export default function BulkInvoicingPage() {
     setQueue(items);
   };
 
+  // One-click apply global product name and price to all queue items
+  const applyGlobalToAllQueue = () => {
+    setQueue((prev) =>
+      prev.map((item) => ({
+        ...item,
+        amount: globalPrice,
+        description: globalProductName,
+      }))
+    );
+  };
+
   // Load Sample Template (5 recipients demo)
   const loadSampleData = () => {
-    const sample = `Acme Corporation\tacme@example.com\t250\tMonthly Web Hosting & Support\tINV-2026-1001
-Starlight Media Inc\tbilling@starlight.io\t500\tCustom Application Development\tINV-2026-1002
-Apex Logistics\taccounts@apexlogistics.com\t150\tMonthly Maintenance\tINV-2026-1003
-Horizon Health\tinfo@horizonhealth.org\t350\tCloud Infrastructure Setup\tINV-2026-1004
-TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-1005`;
+    const sample = `alex.turner@company.io\nsarah.jenkins@enterprise.com\naccounting@apexlogistics.com\ninfo@horizonhealth.org\nfinance@technova.dev`;
     setRawInput(sample);
   };
 
@@ -150,6 +149,9 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
     const dueDate = new Date(Date.now() + dueDateDays * 86400000)
       .toISOString()
       .split("T")[0];
+
+    const finalItemTitle = item.description || globalProductName;
+    const finalAmount = Number(item.amount) || globalPrice;
 
     // 1. Create Invoice
     const invoiceRes = await fetch("/api/wave/invoices", {
@@ -166,10 +168,10 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
         dueDate,
         items: [
           {
-            name: item.description || defaultItemName,
-            description: item.description || defaultItemName,
+            name: finalItemTitle,
+            description: "",
             quantity: 1,
-            unitPrice: item.amount,
+            unitPrice: finalAmount,
           },
         ],
       }),
@@ -184,16 +186,15 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
 
     // 2. Send Invoice Email if email exists
     if (item.customerEmail) {
-      // Interpolate template variables
       const personalizedSubject = emailSubject
         .replace(/{customerName}/g, item.customerName)
         .replace(/{invoiceNumber}/g, invoice.invoiceNumber || item.invoiceNumber || "")
-        .replace(/{amount}/g, String(item.amount));
+        .replace(/{amount}/g, String(finalAmount));
 
       const personalizedBody = emailBody
         .replace(/{customerName}/g, item.customerName)
         .replace(/{invoiceNumber}/g, invoice.invoiceNumber || item.invoiceNumber || "")
-        .replace(/{amount}/g, String(item.amount))
+        .replace(/{amount}/g, String(finalAmount))
         .replace(/{dueDate}/g, dueDate);
 
       const sendRes = await fetch("/api/wave/invoices/send", {
@@ -234,15 +235,11 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
     }
 
     setIsProcessing(true);
-    setIsPaused(false);
 
     for (let i = currentIndex; i < queue.length; i++) {
-      if (isPaused) break;
-
       const item = queue[i];
-      if (item.status === "success") continue; // Skip already finished
+      if (item.status === "success") continue;
 
-      // Update status to processing
       setQueue((prev) =>
         prev.map((q, idx) =>
           idx === i ? { ...q, status: "processing" } : q
@@ -271,7 +268,6 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
         );
       }
 
-      // Small delay between requests to respect Wave rate-limits
       await new Promise((r) => setTimeout(r, 600));
     }
 
@@ -285,11 +281,11 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
   // Export Results to CSV
   const exportResultsCSV = () => {
     if (queue.length === 0) return;
-    const header = "Customer Name,Email,Amount,Invoice Number,Status,Invoice URL,Error Message\n";
+    const header = "Customer Name,Email,Product,Amount,Invoice Number,Status,Invoice URL,Error Message\n";
     const rows = queue
       .map(
         (q) =>
-          `"${q.customerName}","${q.customerEmail}","${q.amount}","${q.invoiceNumber || ""}","${q.status}","${q.invoiceUrl || ""}","${q.errorMessage || ""}"`
+          `"${q.customerName}","${q.customerEmail}","${q.description || globalProductName}","${q.amount}","${q.invoiceNumber || ""}","${q.status}","${q.invoiceUrl || ""}","${q.errorMessage || ""}"`
       )
       .join("\n");
 
@@ -305,7 +301,7 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
 
   return (
     <div className="space-y-8">
-      {/* Title */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
@@ -313,7 +309,7 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
             Bulk Invoicing & Email Dispatch
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Paste 100–300+ customers from Excel/CSV and automatically create, approve, and send custom invoices in batch.
+            Set one global product &amp; price, paste your email list, and send invoices to 100–500+ recipients automatically.
           </p>
         </div>
 
@@ -333,13 +329,69 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
         </div>
       </div>
 
-      {/* Grid: Left Input, Right Queue */}
+      {/* Global Product & Price Card (Applied to All) */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-200/60 pb-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Tag className="w-5 h-5 text-blue-600" />
+            <h2 className="text-lg font-bold text-slate-900">
+              Global Product &amp; Global Price (Applied to All Invoices)
+            </h2>
+          </div>
+          {queue.length > 0 && (
+            <button
+              type="button"
+              onClick={applyGlobalToAllQueue}
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm w-fit"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Apply This Product &amp; Price to All ({queue.length}) in Queue
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Global Product / Service Title *
+            </label>
+            <input
+              type="text"
+              value={globalProductName}
+              onChange={(e) => setGlobalProductName(e.target.value)}
+              placeholder="e.g. Web Application Development"
+              className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              This exact title will be created and displayed as the primary bold product on every invoice.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Global Price per Invoice ($) *
+            </label>
+            <input
+              type="number"
+              value={globalPrice}
+              onChange={(e) => setGlobalPrice(Number(e.target.value))}
+              placeholder="250"
+              className="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Every customer in the list will be charged this amount.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Grid: Left Paste, Right Queue */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Config & Paste Area (5 cols) */}
+        {/* Left: Input List & Email Template (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
             <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3">
-              1. Paste Customers (CSV / Excel)
+              1. Paste Recipient Emails
             </h2>
 
             <div>
@@ -365,18 +417,18 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Customer Emails or CSV (Paste List)
+                  Recipient Email List (1 per line)
                 </label>
                 <button
                   type="button"
                   onClick={loadSampleData}
                   className="text-xs text-blue-600 hover:underline font-medium"
                 >
-                  Load Demo Data
+                  Load Demo List
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 mb-2">
-                Paste <strong>just email addresses</strong> line-by-line, or full CSV data (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Email</code> or <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Name, Email, Price</code>).
+                Just paste pure email addresses line-by-line. No names or prices needed!
               </p>
               <textarea
                 rows={8}
@@ -393,40 +445,15 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 transition"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              Parse &amp; Load into Queue
+              Load Recipients into Queue
             </button>
           </div>
 
-          {/* Batch Email & Default Item Settings */}
+          {/* Email Customization */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
             <h2 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3">
-              2. Shared Email &amp; Item Template
+              2. Email Subject &amp; Message Template
             </h2>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Default Item Name
-                </label>
-                <input
-                  type="text"
-                  value={defaultItemName}
-                  onChange={(e) => setDefaultItemName(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Default Price ($)
-                </label>
-                <input
-                  type="number"
-                  value={defaultPrice}
-                  onChange={(e) => setDefaultPrice(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-            </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -470,7 +497,7 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
           </div>
         </div>
 
-        {/* Right Queue & Live Execution Table (7 cols) */}
+        {/* Right: Execution Queue (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
@@ -483,7 +510,6 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
                 </p>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex items-center gap-2">
                 {queue.length > 0 && (
                   <button
@@ -538,7 +564,8 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
                 <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="p-2.5">#</th>
-                    <th className="p-2.5">Customer &amp; Email</th>
+                    <th className="p-2.5">Email &amp; Recipient</th>
+                    <th className="p-2.5">Product Title</th>
                     <th className="p-2.5 text-right">Amount</th>
                     <th className="p-2.5 text-center">Status</th>
                     <th className="p-2.5 text-right">Action</th>
@@ -547,8 +574,8 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
                 <tbody className="divide-y divide-slate-100">
                   {queue.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-400">
-                        No customers in queue. Paste customer data on the left or click &quot;Load Demo Data&quot;.
+                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                        No recipients in queue. Paste your email list on the left or click &quot;Load Demo List&quot;.
                       </td>
                     </tr>
                   ) : (
@@ -556,11 +583,14 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
                       <tr key={item.id} className="hover:bg-slate-50/50">
                         <td className="p-2.5 text-slate-400 font-mono">{idx + 1}</td>
                         <td className="p-2.5">
-                          <p className="font-semibold text-slate-800">{item.customerName}</p>
-                          <p className="text-slate-500 text-[11px]">{item.customerEmail || "No email"}</p>
+                          <p className="font-semibold text-slate-800">{item.customerEmail || item.customerName}</p>
+                          <p className="text-slate-400 text-[11px]">{item.customerName}</p>
                         </td>
-                        <td className="p-2.5 text-right font-medium text-slate-700">
-                          ${item.amount.toFixed(2)}
+                        <td className="p-2.5 text-slate-700 font-medium">
+                          {item.description || globalProductName}
+                        </td>
+                        <td className="p-2.5 text-right font-bold text-slate-900">
+                          ${Number(item.amount || globalPrice).toFixed(2)}
                         </td>
                         <td className="p-2.5 text-center">
                           {item.status === "pending" && (
