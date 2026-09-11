@@ -114,53 +114,38 @@ export async function POST(request: NextRequest) {
           productId = existing.id;
         } else {
           // Auto-create product in Wave with the exact productName as the product title
-          try {
-            const prodInput: any = {
-              businessId,
-              name: productName.substring(0, 100),
-              unitPrice: Number(item.unitPrice) || 0,
-            };
-            if (defaultIncomeAccountId) {
-              prodInput.incomeAccountId = defaultIncomeAccountId;
-            }
+          const prodInput: any = {
+            businessId,
+            name: productName.substring(0, 100),
+            unitPrice: Number(item.unitPrice) || 0,
+          };
+          if (defaultIncomeAccountId) {
+            prodInput.incomeAccountId = defaultIncomeAccountId;
+          }
 
-            const prodRes = await waveGraphQLRequest<any>(
-              QUERIES.CREATE_PRODUCT,
-              { input: prodInput },
-              customToken
+          const prodRes = await waveGraphQLRequest<any>(
+            QUERIES.CREATE_PRODUCT,
+            { input: prodInput },
+            customToken
+          );
+
+          if (prodRes?.productCreate?.didSucceed && prodRes?.productCreate?.product?.id) {
+            productId = prodRes.productCreate.product.id;
+            existingProducts.push(prodRes.productCreate.product);
+          } else {
+            const errDetail =
+              prodRes?.productCreate?.inputErrors?.map((e: any) => e.message).join(", ") ||
+              "Could not create product in Wave";
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Failed to create product "${productName}" in Wave: ${errDetail}`,
+                inputErrors: prodRes?.productCreate?.inputErrors,
+              },
+              { status: 400 }
             );
-
-            if (prodRes?.productCreate?.didSucceed && prodRes?.productCreate?.product?.id) {
-              productId = prodRes.productCreate.product.id;
-              existingProducts.push(prodRes.productCreate.product);
-            } else if (prodRes?.productCreate?.inputErrors?.length) {
-              console.warn(
-                "Wave productCreate input errors:",
-                JSON.stringify(prodRes.productCreate.inputErrors)
-              );
-            }
-          } catch (e) {
-            console.warn("Could not create Wave product:", e);
           }
         }
-
-        // Fallback: If creation didn't succeed, use any existing product ID from the business
-        if (!productId && existingProducts.length > 0) {
-          productId = existingProducts[0].id;
-        }
-      }
-
-      if (!productId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              "Could not find or create a valid Product in Wave for: " +
-              productName +
-              ". Please ensure your Wave account has at least one Sales/Income account or product.",
-          },
-          { status: 400 }
-        );
       }
 
       const itemInput: any = {
