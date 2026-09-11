@@ -85,13 +85,40 @@ export default function BulkInvoicingPage() {
 
       parts = parts.map((p) => p.trim().replace(/^["']|["']$/g, ""));
 
-      const customerName = parts[0] || `Customer ${idx + 1}`;
-      const customerEmail = parts[1] || "";
-      const amount = Number(parts[2]) || defaultPrice;
-      const description = parts[3] || defaultItemName;
-      const invoiceNumber =
-        parts[4] ||
-        `INV-${new Date().getFullYear()}-${String(idx + 101).padStart(4, "0")}`;
+      // Intelligent Detection:
+      // If the line only contains an email address (e.g. "alex@company.com" or "alex@company.com, 250")
+      let customerName = "";
+      let customerEmail = "";
+      let amount = defaultPrice;
+      let description = defaultItemName;
+      let invoiceNumber = `INV-${new Date().getFullYear()}-${String(idx + 101).padStart(4, "0")}`;
+
+      if (parts.length === 1) {
+        // Just email passed line-by-line: "john@example.com"
+        if (parts[0].includes("@")) {
+          customerEmail = parts[0];
+          // Auto-generate name from username part of email: e.g. "john.smith@..." -> "John Smith"
+          const rawName = parts[0].split("@")[0].replace(/[._-]/g, " ");
+          customerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+        } else {
+          customerName = parts[0];
+        }
+      } else if (parts[0].includes("@")) {
+        // Line starts with email: "john@example.com, 250, Custom Item"
+        customerEmail = parts[0];
+        const rawName = parts[0].split("@")[0].replace(/[._-]/g, " ");
+        customerName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+        amount = Number(parts[1]) || defaultPrice;
+        if (parts[2]) description = parts[2];
+        if (parts[3]) invoiceNumber = parts[3];
+      } else {
+        // Standard format: "Customer Name, Email, Price, Description, Inv#"
+        customerName = parts[0] || `Customer ${idx + 1}`;
+        customerEmail = parts[1] || "";
+        amount = Number(parts[2]) || defaultPrice;
+        description = parts[3] || defaultItemName;
+        if (parts[4]) invoiceNumber = parts[4];
+      }
 
       items.push({
         id: Math.random().toString(),
@@ -338,7 +365,7 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Customer Data (Paste TSV/CSV)
+                  Customer Emails or CSV (Paste List)
                 </label>
                 <button
                   type="button"
@@ -349,13 +376,13 @@ TechNova Labs\tpayments@technova.dev\t1200\tEnterprise Sprint Phase 1\tINV-2026-
                 </button>
               </div>
               <p className="text-[11px] text-slate-500 mb-2">
-                Format: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Name, Email, Price, Description, Invoice#</code>
+                Paste <strong>just email addresses</strong> line-by-line, or full CSV data (<code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Email</code> or <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Name, Email, Price</code>).
               </p>
               <textarea
                 rows={8}
                 value={rawInput}
                 onChange={(e) => setRawInput(e.target.value)}
-                placeholder={`Acme Corp\tacme@example.com\t250\tConsulting\tINV-001\nJane Doe\tjane@example.com\t150\tDesign\tINV-002`}
+                placeholder={`alex@company.com\njohn.smith@client.io\nbilling@enterprise.org\nfinance@startup.co`}
                 className="w-full border border-slate-300 rounded-lg p-2.5 text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
