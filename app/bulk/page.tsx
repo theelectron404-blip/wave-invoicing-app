@@ -25,7 +25,7 @@ export default function BulkInvoicingPage() {
     "Web Application Development"
   );
   const [globalPrice, setGlobalPrice] = useState<number>(250);
-  const [delaySeconds, setDelaySeconds] = useState<number>(3);
+  const [delaySeconds, setDelaySeconds] = useState<number>(5);
   const [dueDateDays, setDueDateDays] = useState<number>(14);
   const [emailSubject, setEmailSubject] = useState(
     "Invoice {invoiceNumber} for {customerName}"
@@ -226,10 +226,10 @@ export default function BulkInvoicingPage() {
 
         lastError = sendData.error || "Failed to send email";
 
-        // If rate limited by Wave, sleep for 3-5 seconds and retry
-        if (lastError.toLowerCase().includes("rate limit") && attempt < 3) {
-          console.warn(`Wave rate limit hit for ${item.customerEmail}. Waiting ${attempt * 3}s before retry...`);
-          await new Promise((r) => setTimeout(r, attempt * 3000));
+        // If rate limited by Wave, sleep for 6-12 seconds and retry
+        if ((lastError.toLowerCase().includes("rate limit") || lastError.toLowerCase().includes("too many requests")) && attempt < 3) {
+          console.warn(`Wave rate limit hit for ${item.customerEmail}. Waiting ${attempt * 6}s before retry...`);
+          await new Promise((r) => setTimeout(r, attempt * 6000));
         } else {
           break;
         }

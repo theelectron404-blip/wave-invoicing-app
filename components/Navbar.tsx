@@ -48,6 +48,13 @@ export default function Navbar() {
               Bulk Send (200-300+)
             </Link>
             <Link
+              href="/invoices"
+              className="text-slate-600 hover:text-emerald-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 transition"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              Invoices &amp; Mark Paid
+            </Link>
+            <Link
               href="/settings"
               className="text-slate-600 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-1.5 transition"
             >

@@ -210,6 +210,66 @@ export const QUERIES = {
     }
   `,
 
+  GET_INVOICES: `
+    query GetInvoices($businessId: ID!, $page: Int, $pageSize: Int) {
+      business(id: $businessId) {
+        id
+        invoices(page: $page, pageSize: $pageSize) {
+          pageInfo {
+            currentPage
+            totalPages
+            totalCount
+          }
+          edges {
+            node {
+              id
+              invoiceNumber
+              status
+              createdAt
+              invoiceDate
+              dueDate
+              viewUrl
+              pdfUrl
+              customer {
+                id
+                name
+                email
+              }
+              total {
+                raw
+                value
+              }
+              amountDue {
+                raw
+                value
+              }
+              amountPaid {
+                raw
+                value
+              }
+            }
+          }
+        }
+      }
+    }
+  `,
+
+  RECORD_PAYMENT: `
+    mutation MoneyTransactionCreate($input: MoneyTransactionCreateInput!) {
+      moneyTransactionCreate(input: $input) {
+        didSucceed
+        inputErrors {
+          code
+          message
+          path
+        }
+        transaction {
+          id
+        }
+      }
+    }
+  `,
+
   SEND_INVOICE: `
     mutation InvoiceSend($input: InvoiceSendInput!) {
       invoiceSend(input: $input) {
