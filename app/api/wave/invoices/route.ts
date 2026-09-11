@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
             businessId,
             name: productName.substring(0, 100),
             unitPrice: Number(item.unitPrice) || 0,
+            isSold: true,
+            isBought: false,
           };
           if (defaultIncomeAccountId) {
             prodInput.incomeAccountId = defaultIncomeAccountId;
