@@ -58,7 +58,6 @@ export async function exchangeCodeForTokens(
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Basic ${basicAuth}`,
       Accept: "application/json",
-      Host: "oauth.platform.intuit.com",
     },
     body: body.toString(),
   });

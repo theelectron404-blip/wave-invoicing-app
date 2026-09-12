@@ -20,40 +20,57 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // If server-side credentials are not set in process.env, redirect back with code & realmId for client exchange
-  if (!process.env.QBO_CLIENT_ID || !process.env.QBO_CLIENT_SECRET) {
-    return NextResponse.redirect(
-      `${baseUrl}/settings?qbo_code=${encodeURIComponent(code)}&qbo_realmid=${encodeURIComponent(
-        realmId
-      )}&qbo_pending=true`
-    );
+  // Try parsing credentials if they were encoded in state
+  let parsedClientId = process.env.QBO_CLIENT_ID;
+  let parsedClientSecret = process.env.QBO_CLIENT_SECRET;
+  let parsedEnv = (process.env.QBO_ENVIRONMENT as "sandbox" | "production") || "production";
+
+  if (state && state.startsWith("cfg_")) {
+    try {
+      const stateData = JSON.parse(decodeURIComponent(state.replace("cfg_", "")));
+      if (stateData.clientId) parsedClientId = stateData.clientId;
+      if (stateData.clientSecret) parsedClientSecret = stateData.clientSecret;
+      if (stateData.environment) parsedEnv = stateData.environment;
+    } catch (_) {}
   }
 
-  try {
-    const redirectUri = `${baseUrl}/api/quickbooks/callback`;
-    const tokens = await exchangeCodeForTokens(
-      code,
-      realmId,
-      process.env.QBO_CLIENT_ID,
-      process.env.QBO_CLIENT_SECRET,
-      redirectUri
-    );
+  // Attempt server-side direct exchange if we have credentials
+  if (parsedClientId && parsedClientSecret) {
+    try {
+      const redirectUri = `${baseUrl}/api/quickbooks/callback`;
+      const tokens = await exchangeCodeForTokens(
+        code,
+        realmId,
+        parsedClientId,
+        parsedClientSecret,
+        redirectUri
+      );
 
-    const redirectParams = new URLSearchParams({
-      qbo_connected: "true",
-      qbo_access_token: tokens.access_token,
-      qbo_refresh_token: tokens.refresh_token,
-      qbo_realm_id: tokens.realmId,
-      qbo_expires_in: String(tokens.expires_in),
-      qbo_environment: (process.env.QBO_ENVIRONMENT as "sandbox" | "production") || "production",
-    });
+      const redirectParams = new URLSearchParams({
+        qbo_connected: "true",
+        qbo_access_token: tokens.access_token,
+        qbo_refresh_token: tokens.refresh_token,
+        qbo_realm_id: tokens.realmId,
+        qbo_expires_in: String(tokens.expires_in),
+        qbo_environment: parsedEnv,
+      });
 
-    return NextResponse.redirect(`${baseUrl}/settings?${redirectParams.toString()}`);
-  } catch (err: any) {
-    return NextResponse.redirect(
-      `${baseUrl}/settings?qbo_code=${encodeURIComponent(code)}&qbo_realmid=${encodeURIComponent(
-        realmId
-      )}&qbo_pending=true`
-    );
+      return NextResponse.redirect(`${baseUrl}/settings?${redirectParams.toString()}`);
+    } catch (err: any) {
+      console.error("Direct server exchange failed:", err);
+      // If server exchange fails, fallback to client-side callback with error or code
+      return NextResponse.redirect(
+        `${baseUrl}/settings?qbo_code=${encodeURIComponent(code)}&qbo_realmid=${encodeURIComponent(
+          realmId
+        )}&qbo_pending=true`
+      );
+    }
   }
+
+  // Fallback: redirect back with code & realmId for client-side exchange
+  return NextResponse.redirect(
+    `${baseUrl}/settings?qbo_code=${encodeURIComponent(code)}&qbo_realmid=${encodeURIComponent(
+      realmId
+    )}&qbo_pending=true`
+  );
 }
