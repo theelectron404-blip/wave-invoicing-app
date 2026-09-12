@@ -280,6 +280,17 @@ export default function BulkInvoicingPage() {
       const accessToken = localStorage.getItem("qbo_access_token") || "";
       const environment = localStorage.getItem("qbo_environment") || "production";
 
+      const personalizedSubject = emailSubject
+        .replace(/{customerName}/g, item.customerName)
+        .replace(/{invoiceNumber}/g, item.invoiceNumber || "")
+        .replace(/{amount}/g, String(finalAmount));
+
+      const personalizedBody = emailBody
+        .replace(/{customerName}/g, item.customerName)
+        .replace(/{invoiceNumber}/g, item.invoiceNumber || "")
+        .replace(/{amount}/g, String(finalAmount))
+        .replace(/{dueDate}/g, dueDate);
+
       const invoiceRes = await fetch("/api/quickbooks/invoices", {
         method: "POST",
         headers: {
@@ -293,6 +304,9 @@ export default function BulkInvoicingPage() {
           customerEmail: item.customerEmail,
           invoiceNumber: item.invoiceNumber,
           dueDate,
+          memo: personalizedBody,
+          emailMessage: personalizedBody,
+          emailSubject: personalizedSubject,
           items: [
             {
               name: finalItemTitle,

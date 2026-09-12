@@ -26,6 +26,8 @@ export async function POST(request: NextRequest) {
       items,
       memo,
       footer,
+      emailMessage,
+      emailSubject,
     } = body;
 
     // 1. Auto-create or resolve customer
@@ -164,8 +166,18 @@ export async function POST(request: NextRequest) {
     if (invoiceDate) invoicePayload.TxnDate = invoiceDate;
     if (dueDate) invoicePayload.DueDate = dueDate;
     if (customerEmail) invoicePayload.BillEmail = { Address: customerEmail };
-    if (memo) invoicePayload.CustomerMemo = { value: memo };
+    if (memo || emailMessage) {
+      invoicePayload.CustomerMemo = { value: (memo || emailMessage).substring(0, 1000) };
+    }
     if (footer) invoicePayload.PrivateNote = footer;
+    if (emailMessage || emailSubject) {
+      invoicePayload.EmailStatus = "NeedToSend";
+      invoicePayload.BillEmailCc = invoicePayload.BillEmailCc || undefined;
+      // In QuickBooks API, BillEmail can include email address and Custom email message
+      invoicePayload.DeliveryInfo = {
+        DeliveryType: "Email",
+      };
+    }
 
     const data = await qboApiRequest<any>("/invoice", {
       method: "POST",

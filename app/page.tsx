@@ -229,7 +229,11 @@ export default function HomePage() {
           "x-qbo-access-token": accessToken,
           "x-qbo-environment": environment,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          emailSubject: emailData.subject,
+          emailMessage: emailData.message,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
