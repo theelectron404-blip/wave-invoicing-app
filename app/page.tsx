@@ -10,6 +10,7 @@ import {
   EmailDispatchData,
   Business,
   Customer,
+  InvoicingProvider,
 } from "@/lib/types";
 import {
   Send,
@@ -18,16 +19,14 @@ import {
   ExternalLink,
   Loader2,
   AlertCircle,
-  Link as LinkIcon,
   Copy,
 } from "lucide-react";
 import Link from "next/link";
 
 export default function HomePage() {
+  const [provider, setProvider] = useState<InvoicingProvider>("wave");
   const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(
-    null
-  );
+  const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -49,8 +48,8 @@ export default function HomePage() {
     customerName: "",
     customerEmail: "",
     invoiceNumber: "INV-2026-001",
-    invoiceDate: "2026-09-11",
-    dueDate: "2026-09-25",
+    invoiceDate: "2026-09-12",
+    dueDate: "2026-09-26",
     currency: "USD",
     items: [
       {
@@ -74,25 +73,57 @@ export default function HomePage() {
     attachPDF: true,
   });
 
-  // Fetch Businesses
+  // Fetch Businesses/Company based on active provider
   const fetchBusinesses = async () => {
-    try {
-      const customToken = localStorage.getItem("wave_custom_token") || "";
-      const res = await fetch("/api/wave/business", {
-        headers: customToken ? { "x-wave-token": customToken } : {},
-      });
-      const data = await res.json();
+    setLoadingInitial(true);
+    const activeProv =
+      (localStorage.getItem("active_invoicing_provider") as InvoicingProvider) || "wave";
+    setProvider(activeProv);
 
-      if (data.success && data.businesses.length > 0) {
-        setBusinesses(data.businesses);
-        const defaultB = data.businesses[0];
-        setSelectedBusiness(defaultB);
-        setFormData((prev) => ({
-          ...prev,
-          businessId: defaultB.id,
-          currency: defaultB.currency?.code || "USD",
-        }));
-        fetchCustomers(defaultB.id);
+    try {
+      if (activeProv === "wave") {
+        const customToken = localStorage.getItem("wave_custom_token") || "";
+        const res = await fetch("/api/wave/business", {
+          headers: customToken ? { "x-wave-token": customToken } : {},
+        });
+        const data = await res.json();
+
+        if (data.success && data.businesses.length > 0) {
+          setBusinesses(data.businesses);
+          const defaultB = data.businesses[0];
+          setSelectedBusiness(defaultB);
+          setFormData((prev) => ({
+            ...prev,
+            businessId: defaultB.id,
+            currency: defaultB.currency?.code || "USD",
+          }));
+          fetchCustomers(defaultB.id, "wave");
+        }
+      } else {
+        // QuickBooks
+        const realmId = localStorage.getItem("qbo_realm_id") || "";
+        const accessToken = localStorage.getItem("qbo_access_token") || "";
+        const environment = localStorage.getItem("qbo_environment") || "production";
+
+        const res = await fetch("/api/quickbooks/company", {
+          headers: {
+            "x-qbo-realm-id": realmId,
+            "x-qbo-access-token": accessToken,
+            "x-qbo-environment": environment,
+          },
+        });
+        const data = await res.json();
+
+        if (data.success && data.business) {
+          setBusinesses([data.business]);
+          setSelectedBusiness(data.business);
+          setFormData((prev) => ({
+            ...prev,
+            businessId: data.business.id,
+            currency: data.business.currency?.code || "USD",
+          }));
+          fetchCustomers(data.business.id, "quickbooks");
+        }
       }
     } catch (err) {
       console.error("Error fetching businesses", err);
@@ -101,16 +132,30 @@ export default function HomePage() {
     }
   };
 
-  // Fetch Customers for selected business
-  const fetchCustomers = async (businessId: string) => {
+  // Fetch Customers
+  const fetchCustomers = async (bId: string, prov: InvoicingProvider) => {
     try {
-      const customToken = localStorage.getItem("wave_custom_token") || "";
-      const res = await fetch(`/api/wave/customers?businessId=${businessId}`, {
-        headers: customToken ? { "x-wave-token": customToken } : {},
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCustomers(data.customers);
+      if (prov === "wave") {
+        const customToken = localStorage.getItem("wave_custom_token") || "";
+        const res = await fetch(`/api/wave/customers?businessId=${bId}`, {
+          headers: customToken ? { "x-wave-token": customToken } : {},
+        });
+        const data = await res.json();
+        if (data.success) setCustomers(data.customers);
+      } else {
+        const realmId = localStorage.getItem("qbo_realm_id") || "";
+        const accessToken = localStorage.getItem("qbo_access_token") || "";
+        const environment = localStorage.getItem("qbo_environment") || "production";
+
+        const res = await fetch("/api/quickbooks/customers", {
+          headers: {
+            "x-qbo-realm-id": realmId,
+            "x-qbo-access-token": accessToken,
+            "x-qbo-environment": environment,
+          },
+        });
+        const data = await res.json();
+        if (data.success) setCustomers(data.customers);
       }
     } catch (err) {
       console.error("Error fetching customers", err);
@@ -119,6 +164,12 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchBusinesses();
+
+    const handleProviderChange = () => {
+      fetchBusinesses();
+    };
+    window.addEventListener("providerChanged", handleProviderChange);
+    return () => window.removeEventListener("providerChanged", handleProviderChange);
   }, []);
 
   const handleBusinessChange = (bId: string) => {
@@ -132,7 +183,7 @@ export default function HomePage() {
       customerEmail: "",
       currency: found?.currency?.code || "USD",
     }));
-    fetchCustomers(bId);
+    fetchCustomers(bId, provider);
   };
 
   const handleCustomerCreated = (newCust: Customer) => {
@@ -148,22 +199,44 @@ export default function HomePage() {
     }
   };
 
-  // Create Invoice (Draft or Final)
+  // Create Invoice via Active Provider
   const createInvoiceAPI = async () => {
-    const customToken = localStorage.getItem("wave_custom_token") || "";
-    const res = await fetch("/api/wave/invoices", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(customToken ? { "x-wave-token": customToken } : {}),
-      },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || "Failed to create invoice");
+    if (provider === "wave") {
+      const customToken = localStorage.getItem("wave_custom_token") || "";
+      const res = await fetch("/api/wave/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(customToken ? { "x-wave-token": customToken } : {}),
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create invoice in Wave");
+      }
+      return data.invoice;
+    } else {
+      const realmId = localStorage.getItem("qbo_realm_id") || "";
+      const accessToken = localStorage.getItem("qbo_access_token") || "";
+      const environment = localStorage.getItem("qbo_environment") || "production";
+
+      const res = await fetch("/api/quickbooks/invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-qbo-realm-id": realmId,
+          "x-qbo-access-token": accessToken,
+          "x-qbo-environment": environment,
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create invoice in QuickBooks");
+      }
+      return data.invoice;
     }
-    return data.invoice;
   };
 
   // Handle Save Draft only
@@ -171,7 +244,7 @@ export default function HomePage() {
     if (!formData.businessId || (!formData.customerId && !formData.customerName)) {
       setActionStatus({
         type: "error",
-        message: "Please select a Wave Business and provide a Customer Name.",
+        message: "Please provide a Company/Business and Customer Name.",
       });
       return;
     }
@@ -183,7 +256,9 @@ export default function HomePage() {
       const invoice = await createInvoiceAPI();
       setActionStatus({
         type: "success",
-        message: `Invoice #${invoice.invoiceNumber} created successfully!`,
+        message: `Invoice #${invoice.invoiceNumber} created successfully in ${
+          provider === "quickbooks" ? "QuickBooks" : "Wave"
+        }!`,
         invoiceUrl: invoice.viewUrl,
         invoiceId: invoice.id,
       });
@@ -202,7 +277,7 @@ export default function HomePage() {
     if (!formData.businessId || (!formData.customerId && !formData.customerName)) {
       setActionStatus({
         type: "error",
-        message: "Please select a Wave Business and provide a Customer Name.",
+        message: "Please provide a Company/Business and Customer Name.",
       });
       return;
     }
@@ -226,38 +301,61 @@ export default function HomePage() {
     setActionStatus({ type: null, message: "" });
 
     try {
-      // 1. Create Invoice in Wave
+      // 1. Create Invoice
       const invoice = await createInvoiceAPI();
 
-      // 2. Send via Wave API
-      const customToken = localStorage.getItem("wave_custom_token") || "";
-      const sendRes = await fetch("/api/wave/invoices/send", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(customToken ? { "x-wave-token": customToken } : {}),
-        },
-        body: JSON.stringify({
-          invoiceId: invoice.id,
-          to: recipients,
-          subject: emailData.subject,
-          message: emailData.message,
-          attachPDF: emailData.attachPDF,
-        }),
-      });
+      // 2. Send via active API
+      if (provider === "wave") {
+        const customToken = localStorage.getItem("wave_custom_token") || "";
+        const sendRes = await fetch("/api/wave/invoices/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(customToken ? { "x-wave-token": customToken } : {}),
+          },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            to: recipients,
+            subject: emailData.subject,
+            message: emailData.message,
+            attachPDF: emailData.attachPDF,
+          }),
+        });
 
-      const sendData = await sendRes.json();
-      if (!sendRes.ok || !sendData.success) {
-        throw new Error(
-          sendData.error || "Invoice created, but failed to send email."
-        );
+        const sendData = await sendRes.json();
+        if (!sendRes.ok || !sendData.success) {
+          throw new Error(sendData.error || "Invoice created, but failed to send email.");
+        }
+      } else {
+        const realmId = localStorage.getItem("qbo_realm_id") || "";
+        const accessToken = localStorage.getItem("qbo_access_token") || "";
+        const environment = localStorage.getItem("qbo_environment") || "production";
+
+        const sendRes = await fetch("/api/quickbooks/invoices/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-qbo-realm-id": realmId,
+            "x-qbo-access-token": accessToken,
+            "x-qbo-environment": environment,
+          },
+          body: JSON.stringify({
+            invoiceId: invoice.id,
+            to: recipients,
+          }),
+        });
+
+        const sendData = await sendRes.json();
+        if (!sendRes.ok || !sendData.success) {
+          throw new Error(sendData.error || "QuickBooks invoice created, but failed to send.");
+        }
       }
 
       setActionStatus({
         type: "success",
         message: `Invoice #${invoice.invoiceNumber} created and sent to ${recipients.join(
           ", "
-        )}!`,
+        )} via ${provider === "quickbooks" ? "QuickBooks" : "Wave"}!`,
         invoiceUrl: invoice.viewUrl,
         invoiceId: invoice.id,
       });
@@ -284,12 +382,22 @@ export default function HomePage() {
       {/* Title & Setup Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Create & Send Custom Invoice
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+              Create &amp; Send Custom Invoice
+            </h1>
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                provider === "quickbooks"
+                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  : "bg-blue-100 text-blue-800 border border-blue-300"
+              }`}
+            >
+              {provider === "quickbooks" ? "QuickBooks Active" : "Wave Active"}
+            </span>
+          </div>
           <p className="text-slate-500 text-sm mt-1">
-            Build customized invoices and dispatch them with customized email
-            subject and body using Wave API.
+            Build customized invoices and dispatch them with customized email subject and body.
           </p>
         </div>
 
@@ -297,7 +405,7 @@ export default function HomePage() {
           href="/settings"
           className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3.5 py-2 rounded-lg border border-slate-300 flex items-center gap-1.5 w-fit transition"
         >
-          Configure Wave API Token
+          API Settings &amp; Providers
         </Link>
       </div>
 
@@ -382,14 +490,18 @@ export default function HomePage() {
               type="button"
               disabled={isSubmitting}
               onClick={handleCreateAndSend}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition disabled:opacity-50"
+              className={`flex-1 text-white font-semibold px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm shadow-md transition disabled:opacity-50 ${
+                provider === "quickbooks"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              Create & Send Invoice Email
+              Create &amp; Send ({provider === "quickbooks" ? "QuickBooks" : "Wave"})
             </button>
           </div>
         </div>

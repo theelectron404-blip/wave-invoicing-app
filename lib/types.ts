@@ -1,7 +1,7 @@
 export interface Business {
   id: string;
   name: string;
-  isPersonal: boolean;
+  isPersonal?: boolean;
   currency: {
     code: string;
     symbol: string;
@@ -73,3 +73,12 @@ export interface BulkQueueItem {
   errorMessage?: string;
 }
 
+export type InvoicingProvider = "wave" | "quickbooks";
+
+export interface QuickBooksTokens {
+  accessToken: string;
+  refreshToken: string;
+  realmId: string;
+  expiresAt: number;
+  environment: "sandbox" | "production";
+}
