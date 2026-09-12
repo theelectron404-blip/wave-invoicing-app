@@ -24,15 +24,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const finalRedirectUri =
-        redirectUri || `${request.nextUrl.origin.replace(/\/$/, "")}/api/quickbooks/callback`;
+      const clientOrigin = redirectUri
+        ? redirectUri.replace(/\/$/, "")
+        : `${request.nextUrl.origin.replace(/\/$/, "")}/api/quickbooks/callback`;
 
       const tokens = await exchangeCodeForTokens(
         code,
         realmId,
         finalClientId,
         finalClientSecret,
-        finalRedirectUri
+        clientOrigin
       );
 
       return NextResponse.json({ success: true, tokens });

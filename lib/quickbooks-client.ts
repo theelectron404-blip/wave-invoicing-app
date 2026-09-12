@@ -41,13 +41,16 @@ export async function exchangeCodeForTokens(
   clientSecret: string,
   redirectUri: string
 ): Promise<QBOTokens> {
-  const basicAuth = Buffer.from(`${clientId.trim()}:${clientSecret.trim()}`).toString("base64");
-  const cleanRedirectUri = redirectUri.replace(/\/$/, "");
+  const cleanClientId = clientId.trim();
+  const cleanClientSecret = clientSecret.trim();
+  const basicAuth = Buffer.from(`${cleanClientId}:${cleanClientSecret}`).toString("base64");
+  const cleanRedirectUri = redirectUri.trim().replace(/\/$/, "");
 
-  const bodyParams = new URLSearchParams();
-  bodyParams.append("grant_type", "authorization_code");
-  bodyParams.append("code", code.trim());
-  bodyParams.append("redirect_uri", cleanRedirectUri);
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: code.trim(),
+    redirect_uri: cleanRedirectUri,
+  });
 
   const res = await fetch("https://oauth.platform.intuit.com/oauth/v1/tokens/bearer", {
     method: "POST",
@@ -55,9 +58,9 @@ export async function exchangeCodeForTokens(
       "Content-Type": "application/x-www-form-urlencoded",
       Authorization: `Basic ${basicAuth}`,
       Accept: "application/json",
-      "User-Agent": "WaveInvoicingApp/1.0",
+      Host: "oauth.platform.intuit.com",
     },
-    body: bodyParams.toString(),
+    body: body.toString(),
   });
 
   const responseText = await res.text();
@@ -68,7 +71,7 @@ export async function exchangeCodeForTokens(
       const errorJson = JSON.parse(responseText);
       parsedError = errorJson.error_description || errorJson.error || responseText;
     } catch (_) {}
-    throw new Error(`QuickBooks token endpoint (${res.status}): ${parsedError}`);
+    throw new Error(`Intuit Token Exchange Error (${res.status}): ${parsedError}`);
   }
 
   const data = JSON.parse(responseText);
