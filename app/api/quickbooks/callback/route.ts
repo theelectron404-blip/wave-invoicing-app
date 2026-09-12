@@ -20,19 +20,31 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Parse state to check if client credentials were encrypted or passed
+  // Parse state to check if client credentials were passed
   let clientId = process.env.QBO_CLIENT_ID || "";
   let clientSecret = process.env.QBO_CLIENT_SECRET || "";
   let environment: "sandbox" | "production" = "production";
 
   if (state && state.startsWith("cfg_")) {
+    const rawState = state.replace("cfg_", "");
     try {
-      const decoded = JSON.parse(Buffer.from(state.replace("cfg_", ""), "base64").toString("utf-8"));
-      if (decoded.clientId) clientId = decoded.clientId;
-      if (decoded.clientSecret) clientSecret = decoded.clientSecret;
-      if (decoded.environment) environment = decoded.environment;
+      // Try URL-decoded JSON first
+      const decodedJson = decodeURIComponent(rawState);
+      const parsed = JSON.parse(decodedJson);
+      if (parsed.clientId) clientId = parsed.clientId;
+      if (parsed.clientSecret) clientSecret = parsed.clientSecret;
+      if (parsed.environment) environment = parsed.environment;
     } catch (e) {
-      console.warn("Could not decode state param:", e);
+      try {
+        // Fallback: base64
+        const decodedB64 = Buffer.from(rawState, "base64").toString("utf-8");
+        const parsed = JSON.parse(decodedB64);
+        if (parsed.clientId) clientId = parsed.clientId;
+        if (parsed.clientSecret) clientSecret = parsed.clientSecret;
+        if (parsed.environment) environment = parsed.environment;
+      } catch (err) {
+        console.warn("Could not decode state param:", err);
+      }
     }
   }
 

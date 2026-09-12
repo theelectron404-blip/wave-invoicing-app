@@ -59,7 +59,7 @@ export async function exchangeCodeForTokens(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Failed to exchange QuickBooks auth code (${res.status}): ${text}`);
+    throw new Error(`Failed to exchange QuickBooks auth code (${res.status}): ${text || res.statusText}`);
   }
 
   const data = await res.json();

@@ -160,8 +160,8 @@ export default function SettingsPage() {
   };
 
   const handleConnectQbo = () => {
-    if (!qboClientId.trim()) {
-      alert("Please enter your QuickBooks Client ID before connecting.");
+    if (!qboClientId.trim() || !qboClientSecret.trim()) {
+      alert("Please enter both QuickBooks Client ID and Client Secret before connecting.");
       return;
     }
 
@@ -175,7 +175,7 @@ export default function SettingsPage() {
       clientSecret: qboClientSecret.trim(),
       environment: qboEnvironment,
     };
-    const stateParam = `cfg_${Buffer.from(JSON.stringify(stateObj)).toString("base64")}`;
+    const stateParam = `cfg_${encodeURIComponent(JSON.stringify(stateObj))}`;
 
     const scopes = "com.intuit.quickbooks.accounting openid email profile";
     const authUrl = `https://appcenter.intuit.com/connect/oauth2?client_id=${encodeURIComponent(
