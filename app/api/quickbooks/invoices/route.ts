@@ -166,17 +166,24 @@ export async function POST(request: NextRequest) {
     if (invoiceDate) invoicePayload.TxnDate = invoiceDate;
     if (dueDate) invoicePayload.DueDate = dueDate;
     if (customerEmail) invoicePayload.BillEmail = { Address: customerEmail };
-    if (memo || emailMessage) {
-      invoicePayload.CustomerMemo = { value: (memo || emailMessage).substring(0, 1000) };
+
+    const emailText = emailMessage || memo;
+    if (emailText) {
+      invoicePayload.CustomerMemo = { value: emailText.substring(0, 1000) };
     }
     if (footer) invoicePayload.PrivateNote = footer;
-    if (emailMessage || emailSubject) {
+
+    // QuickBooks Online Email Customization Structure
+    if (emailSubject || emailText) {
       invoicePayload.EmailStatus = "NeedToSend";
-      invoicePayload.BillEmailCc = invoicePayload.BillEmailCc || undefined;
-      // In QuickBooks API, BillEmail can include email address and Custom email message
       invoicePayload.DeliveryInfo = {
         DeliveryType: "Email",
       };
+      if (customerEmail) {
+        invoicePayload.BillEmail = {
+          Address: customerEmail,
+        };
+      }
     }
 
     const data = await qboApiRequest<any>("/invoice", {
