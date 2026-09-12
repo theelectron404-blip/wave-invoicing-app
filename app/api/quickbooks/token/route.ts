@@ -24,7 +24,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const finalRedirectUri = redirectUri || `${request.nextUrl.origin}/api/quickbooks/callback`;
+      const finalRedirectUri =
+        redirectUri || `${request.nextUrl.origin.replace(/\/$/, "")}/api/quickbooks/callback`;
+
       const tokens = await exchangeCodeForTokens(
         code,
         realmId,

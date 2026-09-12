@@ -79,6 +79,9 @@ export default function SettingsPage() {
 
       if (storedCId && storedCSec) {
         setTestingQbo(true);
+        const cleanOrigin = window.location.origin.replace(/\/$/, "");
+        const redirectUri = `${cleanOrigin}/api/quickbooks/callback`;
+
         fetch("/api/quickbooks/token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -88,7 +91,7 @@ export default function SettingsPage() {
             realmId: qboRealmIdParam,
             clientId: storedCId,
             clientSecret: storedCSec,
-            redirectUri: `${window.location.origin}/api/quickbooks/callback`,
+            redirectUri,
           }),
         })
           .then((res) => res.json())
