@@ -241,19 +241,12 @@ export default function SettingsPage() {
     localStorage.setItem("qbo_environment", qboEnvironment);
 
     const redirectUri = `${window.location.origin}/api/quickbooks/callback`;
-    const stateObj = {
-      clientId: qboClientId.trim(),
-      clientSecret: qboClientSecret.trim(),
-      environment: qboEnvironment,
-    };
-    const stateParam = `cfg_${encodeURIComponent(JSON.stringify(stateObj))}`;
-
     const scopes = "com.intuit.quickbooks.accounting openid email profile";
     const authUrl = `https://appcenter.intuit.com/connect/oauth2?client_id=${encodeURIComponent(
       qboClientId.trim()
     )}&response_type=code&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(
       redirectUri
-    )}&state=${encodeURIComponent(stateParam)}`;
+    )}&state=qbo_auth_state`;
 
     window.location.href = authUrl;
   };
