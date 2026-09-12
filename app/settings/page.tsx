@@ -66,9 +66,71 @@ export default function SettingsPage() {
     // Process URL query parameters from OAuth Callback redirect
     const urlParams = new URLSearchParams(window.location.search);
     const qboConnectedParam = urlParams.get("qbo_connected");
+    const qboPendingParam = urlParams.get("qbo_pending");
+    const qboCodeParam = urlParams.get("qbo_code");
+    const qboRealmIdParam = urlParams.get("qbo_realmid");
     const qboErrorParam = urlParams.get("qbo_error");
 
-    if (qboConnectedParam === "true") {
+    // Client-side direct token exchange handler if server exchange didn't run
+    if (qboPendingParam === "true" && qboCodeParam && qboRealmIdParam) {
+      const storedCId = localStorage.getItem("qbo_client_id") || "";
+      const storedCSec = localStorage.getItem("qbo_client_secret") || "";
+      const storedEnv = (localStorage.getItem("qbo_environment") as "sandbox" | "production") || "production";
+
+      if (storedCId && storedCSec) {
+        setTestingQbo(true);
+        fetch("/api/quickbooks/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "exchange",
+            code: qboCodeParam,
+            realmId: qboRealmIdParam,
+            clientId: storedCId,
+            clientSecret: storedCSec,
+            redirectUri: `${window.location.origin}/api/quickbooks/callback`,
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.tokens) {
+              const tokens = data.tokens;
+              localStorage.setItem("qbo_access_token", tokens.access_token);
+              localStorage.setItem("qbo_refresh_token", tokens.refresh_token);
+              localStorage.setItem("qbo_realm_id", tokens.realmId);
+              localStorage.setItem("qbo_environment", storedEnv);
+
+              setQboAccessToken(tokens.access_token);
+              setQboRefreshToken(tokens.refresh_token);
+              setQboRealmId(tokens.realmId);
+              setQboEnvironment(storedEnv);
+              setIsQboConnected(true);
+
+              setQboTestResult({
+                success: true,
+                message: `QuickBooks connected successfully! Company Realm ID: ${tokens.realmId}`,
+              });
+
+              localStorage.setItem("active_invoicing_provider", "quickbooks");
+              setProvider("quickbooks");
+              window.dispatchEvent(new Event("providerChanged"));
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+              setQboTestResult({
+                success: false,
+                message: data.error || "Failed to exchange QuickBooks tokens.",
+              });
+            }
+          })
+          .catch((err) => {
+            setQboTestResult({
+              success: false,
+              message: err.message || "Failed to exchange tokens",
+            });
+          })
+          .finally(() => setTestingQbo(false));
+      }
+    } else if (qboConnectedParam === "true") {
       const newAToken = urlParams.get("qbo_access_token") || "";
       const newRToken = urlParams.get("qbo_refresh_token") || "";
       const newRealmId = urlParams.get("qbo_realm_id") || "";
@@ -94,6 +156,7 @@ export default function SettingsPage() {
       localStorage.setItem("active_invoicing_provider", "quickbooks");
       setProvider("quickbooks");
       window.dispatchEvent(new Event("providerChanged"));
+      window.history.replaceState({}, document.title, window.location.pathname);
     } else if (qboErrorParam) {
       setQboTestResult({
         success: false,
