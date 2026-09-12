@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to fetch QuickBooks company info" },
-      { status: 500 }
+      { status: error.status || error.statusCode || 500 }
     );
   }
 }

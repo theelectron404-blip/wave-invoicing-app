@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Key, Building2, Check, AlertCircle, Loader2, ExternalLink, RefreshCw, Zap, ShieldCheck } from "lucide-react";
 import { InvoicingProvider } from "@/lib/types";
+import { fetchWithQBORefresh } from "@/lib/qbo-fetch";
 
 export default function SettingsPage() {
   const [provider, setProvider] = useState<InvoicingProvider>("wave");
@@ -256,16 +257,12 @@ export default function SettingsPage() {
     setQboTestResult(null);
 
     try {
-      const res = await fetch("/api/quickbooks/company", {
-        headers: {
-          "x-qbo-realm-id": qboRealmId || localStorage.getItem("qbo_realm_id") || "",
-          "x-qbo-access-token": qboAccessToken || localStorage.getItem("qbo_access_token") || "",
-          "x-qbo-environment": qboEnvironment,
-        },
-      });
+      const res = await fetchWithQBORefresh("/api/quickbooks/company");
       const data = await res.json();
 
       if (data.success) {
+        setQboAccessToken(localStorage.getItem("qbo_access_token") || "");
+        setQboRefreshToken(localStorage.getItem("qbo_refresh_token") || "");
         setQboTestResult({
           success: true,
           message: `Connected successfully to ${data.business?.name}!`,

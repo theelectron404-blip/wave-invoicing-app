@@ -146,7 +146,10 @@ export async function qboApiRequest<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`QuickBooks API HTTP error (${response.status}): ${errorText}`);
+    const err: any = new Error(`QuickBooks API HTTP error (${response.status}): ${errorText}`);
+    err.status = response.status;
+    err.statusCode = response.status;
+    throw err;
   }
 
   return response.json();

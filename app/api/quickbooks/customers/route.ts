@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to fetch QuickBooks customers" },
-      { status: 500 }
+      { status: error.status || error.statusCode || 500 }
     );
   }
 }
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to create customer in QuickBooks" },
-      { status: 500 }
+      { status: error.status || error.statusCode || 500 }
     );
   }
 }

@@ -5,21 +5,25 @@ export async function fetchWithQBORefresh(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const realmId = localStorage.getItem("qbo_realm_id") || "";
-  let accessToken = localStorage.getItem("qbo_access_token") || "";
-  const refreshToken = localStorage.getItem("qbo_refresh_token") || "";
-  const clientId = localStorage.getItem("qbo_client_id") || "";
-  const clientSecret = localStorage.getItem("qbo_client_secret") || "";
-  const environment = localStorage.getItem("qbo_environment") || "production";
+  const getRealmId = () => localStorage.getItem("qbo_realm_id") || "";
+  const getAccessToken = () => localStorage.getItem("qbo_access_token") || "";
+  const getRefreshToken = () => localStorage.getItem("qbo_refresh_token") || "";
+  const getClientId = () => localStorage.getItem("qbo_client_id") || "";
+  const getClientSecret = () => localStorage.getItem("qbo_client_secret") || "";
+  const getEnvironment = () => localStorage.getItem("qbo_environment") || "production";
 
   const headers = new Headers(options.headers || {});
-  headers.set("x-qbo-realm-id", realmId);
-  headers.set("x-qbo-access-token", accessToken);
-  headers.set("x-qbo-environment", environment);
+  headers.set("x-qbo-realm-id", getRealmId());
+  headers.set("x-qbo-access-token", getAccessToken());
+  headers.set("x-qbo-environment", getEnvironment());
 
   let response = await fetch(url, { ...options, headers });
 
-  // If 401 Unauthorized, automatically attempt refresh token exchange
+  // If unauthorized (401), automatically attempt refresh token exchange
+  const refreshToken = getRefreshToken();
+  const clientId = getClientId();
+  const clientSecret = getClientSecret();
+
   if (response.status === 401 && refreshToken && clientId && clientSecret) {
     try {
       const refreshRes = await fetch("/api/quickbooks/token", {
@@ -41,9 +45,13 @@ export async function fetchWithQBORefresh(
         localStorage.setItem("qbo_access_token", newAccess);
         localStorage.setItem("qbo_refresh_token", newRefresh);
 
-        // Retry the original request with the fresh token
-        headers.set("x-qbo-access-token", newAccess);
-        response = await fetch(url, { ...options, headers });
+        // Retry the original request with the freshly issued access token
+        const retryHeaders = new Headers(options.headers || {});
+        retryHeaders.set("x-qbo-realm-id", getRealmId());
+        retryHeaders.set("x-qbo-access-token", newAccess);
+        retryHeaders.set("x-qbo-environment", getEnvironment());
+
+        response = await fetch(url, { ...options, headers: retryHeaders });
       }
     } catch (refreshErr) {
       console.error("Auto token refresh failed:", refreshErr);

@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message || "Failed to create invoice in QuickBooks" },
-      { status: 500 }
+      { status: error.status || error.statusCode || 500 }
     );
   }
 }
