@@ -82,33 +82,32 @@ export default function SettingsPage() {
         const cleanOrigin = window.location.origin.replace(/\/$/, "");
         const redirectUri = `${cleanOrigin}/api/quickbooks/callback`;
 
-        // Direct client-side exchange against Intuit to eliminate any middleware/proxy 404s
-        const basicAuth = btoa(`${storedCId.trim()}:${storedCSec.trim()}`);
-        const bodyParams = new URLSearchParams({
-          grant_type: "authorization_code",
-          code: qboCodeParam.trim(),
-          redirect_uri: redirectUri,
-        });
-
-        fetch("https://oauth.platform.intuit.com/oauth/v1/tokens/bearer", {
+        // Use our server API route for token exchange to avoid browser CORS restrictions
+        fetch("/api/quickbooks/token", {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${basicAuth}`,
-            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-          body: bodyParams.toString(),
+          body: JSON.stringify({
+            action: "exchange",
+            code: qboCodeParam.trim(),
+            realmId: qboRealmIdParam.trim(),
+            clientId: storedCId.trim(),
+            clientSecret: storedCSec.trim(),
+            redirectUri,
+          }),
         })
           .then(async (res) => {
             const data = await res.json();
-            if (res.ok && data.access_token) {
-              localStorage.setItem("qbo_access_token", data.access_token);
-              if (data.refresh_token) localStorage.setItem("qbo_refresh_token", data.refresh_token);
+            if (res.ok && data.success && data.tokens?.access_token) {
+              const tokens = data.tokens;
+              localStorage.setItem("qbo_access_token", tokens.access_token);
+              if (tokens.refresh_token) localStorage.setItem("qbo_refresh_token", tokens.refresh_token);
               localStorage.setItem("qbo_realm_id", qboRealmIdParam);
               localStorage.setItem("qbo_environment", storedEnv);
 
-              setQboAccessToken(data.access_token);
-              if (data.refresh_token) setQboRefreshToken(data.refresh_token);
+              setQboAccessToken(tokens.access_token);
+              if (tokens.refresh_token) setQboRefreshToken(tokens.refresh_token);
               setQboRealmId(qboRealmIdParam);
               setQboEnvironment(storedEnv);
               setIsQboConnected(true);
@@ -126,7 +125,6 @@ export default function SettingsPage() {
               setQboTestResult({
                 success: false,
                 message:
-                  data.error_description ||
                   data.error ||
                   `Failed to exchange token with Intuit (${res.status})`,
               });
