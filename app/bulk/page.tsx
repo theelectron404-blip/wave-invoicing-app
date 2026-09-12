@@ -12,6 +12,7 @@ import {
   Tag,
 } from "lucide-react";
 import { Business, BulkQueueItem, InvoicingProvider } from "@/lib/types";
+import { fetchWithQBORefresh } from "@/lib/qbo-fetch";
 import Link from "next/link";
 
 export default function BulkInvoicingPage() {
@@ -58,17 +59,7 @@ export default function BulkInvoicingPage() {
           setSelectedBusiness(data.businesses[0]);
         }
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch("/api/quickbooks/company", {
-          headers: {
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-        });
+        const res = await fetchWithQBORefresh("/api/quickbooks/company");
         const data = await res.json();
         if (data.success && data.business) {
           setBusinesses([data.business]);
@@ -282,10 +273,6 @@ export default function BulkInvoicingPage() {
       return invoice.viewUrl;
     } else {
       // QuickBooks Engine
-      const realmId = localStorage.getItem("qbo_realm_id") || "";
-      const accessToken = localStorage.getItem("qbo_access_token") || "";
-      const environment = localStorage.getItem("qbo_environment") || "production";
-
       const personalizedSubject = emailSubject
         .replace(/{customerName}/g, item.customerName)
         .replace(/{invoiceNumber}/g, item.invoiceNumber || "")
@@ -297,13 +284,10 @@ export default function BulkInvoicingPage() {
         .replace(/{amount}/g, String(finalAmount))
         .replace(/{dueDate}/g, dueDate);
 
-      const invoiceRes = await fetch("/api/quickbooks/invoices", {
+      const invoiceRes = await fetchWithQBORefresh("/api/quickbooks/invoices", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-qbo-realm-id": realmId,
-          "x-qbo-access-token": accessToken,
-          "x-qbo-environment": environment,
         },
         body: JSON.stringify({
           customerName: item.customerName,
@@ -336,13 +320,10 @@ export default function BulkInvoicingPage() {
         let lastError = "";
 
         for (let attempt = 1; attempt <= 3; attempt++) {
-          const sendRes = await fetch("/api/quickbooks/invoices/send", {
+          const sendRes = await fetchWithQBORefresh("/api/quickbooks/invoices/send", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-qbo-realm-id": realmId,
-              "x-qbo-access-token": accessToken,
-              "x-qbo-environment": environment,
             },
             body: JSON.stringify({
               invoiceId: invoice.id,

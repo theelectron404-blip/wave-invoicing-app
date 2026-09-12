@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Copy,
 } from "lucide-react";
+import { fetchWithQBORefresh } from "@/lib/qbo-fetch";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -101,17 +102,7 @@ export default function HomePage() {
         }
       } else {
         // QuickBooks
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch("/api/quickbooks/company", {
-          headers: {
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-        });
+        const res = await fetchWithQBORefresh("/api/quickbooks/company");
         const data = await res.json();
 
         if (data.success && data.business) {
@@ -143,17 +134,7 @@ export default function HomePage() {
         const data = await res.json();
         if (data.success) setCustomers(data.customers);
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch("/api/quickbooks/customers", {
-          headers: {
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-        });
+        const res = await fetchWithQBORefresh("/api/quickbooks/customers");
         const data = await res.json();
         if (data.success) setCustomers(data.customers);
       }
@@ -217,17 +198,10 @@ export default function HomePage() {
       }
       return data.invoice;
     } else {
-      const realmId = localStorage.getItem("qbo_realm_id") || "";
-      const accessToken = localStorage.getItem("qbo_access_token") || "";
-      const environment = localStorage.getItem("qbo_environment") || "production";
-
-      const res = await fetch("/api/quickbooks/invoices", {
+      const res = await fetchWithQBORefresh("/api/quickbooks/invoices", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-qbo-realm-id": realmId,
-          "x-qbo-access-token": accessToken,
-          "x-qbo-environment": environment,
         },
         body: JSON.stringify({
           ...formData,
@@ -331,17 +305,10 @@ export default function HomePage() {
           throw new Error(sendData.error || "Invoice created, but failed to send email.");
         }
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const sendRes = await fetch("/api/quickbooks/invoices/send", {
+        const sendRes = await fetchWithQBORefresh("/api/quickbooks/invoices/send", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
           },
           body: JSON.stringify({
             invoiceId: invoice.id,

@@ -14,6 +14,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { Business, InvoicingProvider } from "@/lib/types";
+import { fetchWithQBORefresh } from "@/lib/qbo-fetch";
 import Link from "next/link";
 
 interface InvoiceItem {
@@ -79,17 +80,7 @@ export default function InvoicesManagerPage() {
           setIsLoading(false);
         }
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch("/api/quickbooks/company", {
-          headers: {
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-        });
+        const res = await fetchWithQBORefresh("/api/quickbooks/company");
         const data = await res.json();
         if (data.success && data.business) {
           setBusinesses([data.business]);
@@ -133,17 +124,7 @@ export default function InvoicesManagerPage() {
           });
         }
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch(`/api/quickbooks/invoices/list?pageSize=50`, {
-          headers: {
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-        });
+        const res = await fetchWithQBORefresh(`/api/quickbooks/invoices/list?pageSize=50`);
         const data = await res.json();
         if (data.success) {
           setInvoices(data.invoices || []);
@@ -198,17 +179,10 @@ export default function InvoicesManagerPage() {
           });
         }
       } else {
-        const realmId = localStorage.getItem("qbo_realm_id") || "";
-        const accessToken = localStorage.getItem("qbo_access_token") || "";
-        const environment = localStorage.getItem("qbo_environment") || "production";
-
-        const res = await fetch("/api/quickbooks/invoices/pay", {
+        const res = await fetchWithQBORefresh("/api/quickbooks/invoices/pay", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
           },
           body: JSON.stringify({
             invoiceId: inv.id,
