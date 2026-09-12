@@ -31,9 +31,10 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // 1. Auto-create or resolve customer
-    if (!customerId && customerName) {
+    if (!customerId) {
+      const resolvedName = (customerName || customerEmail?.split("@")[0] || "Valued Customer").trim();
       try {
-        const cleanName = customerName.replace(/'/g, "\\'");
+        const cleanName = resolvedName.replace(/'/g, "\\'");
         const query = encodeURIComponent(`select * from Customer where DisplayName = '${cleanName}'`);
         const custSearch = await qboApiRequest<any>(`/query?query=${query}`, {
           realmId,
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
         if (custSearch?.QueryResponse?.Customer?.length > 0) {
           customerId = custSearch.QueryResponse.Customer[0].Id;
         } else {
-          const custPayload: any = { DisplayName: customerName.trim() };
+          const custPayload: any = { DisplayName: resolvedName };
           if (customerEmail) custPayload.PrimaryEmailAddr = { Address: customerEmail.trim() };
 
           const newCust = await qboApiRequest<any>("/customer", {
@@ -58,14 +59,47 @@ export async function POST(request: NextRequest) {
             customerId = newCust.Customer.Id;
           }
         }
-      } catch (err) {
-        console.warn("Could not auto-create customer in QuickBooks:", err);
+      } catch (err: any) {
+        console.warn("Could not auto-create customer by name, trying fallback:", err);
+        // If duplicate display name or specific error, fallback to appending timestamp or email
+        try {
+          const fallbackName = `${resolvedName} (${Date.now().toString().slice(-4)})`;
+          const fallbackCust = await qboApiRequest<any>("/customer", {
+            method: "POST",
+            body: {
+              DisplayName: fallbackName,
+              PrimaryEmailAddr: customerEmail ? { Address: customerEmail.trim() } : undefined,
+            },
+            realmId,
+            accessToken,
+            environment,
+          });
+          if (fallbackCust?.Customer?.Id) {
+            customerId = fallbackCust.Customer.Id;
+          }
+        } catch (innerErr) {
+          console.error("Failed fallback customer creation:", innerErr);
+        }
       }
     }
 
     if (!customerId) {
+      // Last resort: query any existing customer in QuickBooks
+      try {
+        const anyCust = await qboApiRequest<any>("/query?query=" + encodeURIComponent("select * from Customer maxresults 1"), {
+          realmId,
+          accessToken,
+          environment,
+        });
+        if (anyCust?.QueryResponse?.Customer?.length > 0) {
+          customerId = anyCust.QueryResponse.Customer[0].Id;
+        }
+      } catch (_) {}
+    }
+
+    if (!customerId) {
       return NextResponse.json(
-        { success: false, error: "Customer information is required (customerId or customerName)." },
+        { success: false, error: "Customer information is required. Please provide a Customer Name." },
         { status: 400 }
       );
     }

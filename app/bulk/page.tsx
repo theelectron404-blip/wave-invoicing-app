@@ -184,7 +184,13 @@ export default function BulkInvoicingPage() {
     if (provider === "wave") {
       const customToken = localStorage.getItem("wave_custom_token") || "";
 
-      // 1. Create Invoice in Wave
+      // 1. Create Invoice in Wave. If customerName is empty, use email local-part or "Valued Customer"
+      const fallbackName = (item.customerName || item.customerEmail.split("@")[0] || "Valued Customer")
+        .split(/[._-]/)
+        .filter(Boolean)
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+
       const invoiceRes = await fetch("/api/wave/invoices", {
         method: "POST",
         headers: {
@@ -193,7 +199,7 @@ export default function BulkInvoicingPage() {
         },
         body: JSON.stringify({
           businessId: bId,
-          customerName: item.customerName,
+          customerName: item.customerName || fallbackName,
           customerEmail: item.customerEmail,
           invoiceNumber: item.invoiceNumber,
           dueDate,
