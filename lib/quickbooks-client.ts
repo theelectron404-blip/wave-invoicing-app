@@ -52,7 +52,7 @@ export async function exchangeCodeForTokens(
     redirect_uri: cleanRedirectUri,
   });
 
-  const res = await fetch("https://oauth.platform.intuit.com/oauth/v1/tokens/bearer", {
+  const res = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -88,7 +88,7 @@ export async function refreshQBOToken(
 ): Promise<QBOTokens> {
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
-  const res = await fetch("https://oauth.platform.intuit.com/oauth/v1/tokens/bearer", {
+  const res = await fetch("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
