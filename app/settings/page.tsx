@@ -82,36 +82,40 @@ export default function SettingsPage() {
         const cleanOrigin = window.location.origin.replace(/\/$/, "");
         const redirectUri = `${cleanOrigin}/api/quickbooks/callback`;
 
-        fetch("/api/quickbooks/token", {
+        // Direct client-side exchange against Intuit to eliminate any middleware/proxy 404s
+        const basicAuth = btoa(`${storedCId.trim()}:${storedCSec.trim()}`);
+        const bodyParams = new URLSearchParams({
+          grant_type: "authorization_code",
+          code: qboCodeParam.trim(),
+          redirect_uri: redirectUri,
+        });
+
+        fetch("https://oauth.platform.intuit.com/oauth/v1/tokens/bearer", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "exchange",
-            code: qboCodeParam,
-            realmId: qboRealmIdParam,
-            clientId: storedCId,
-            clientSecret: storedCSec,
-            redirectUri,
-          }),
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Basic ${basicAuth}`,
+            Accept: "application/json",
+          },
+          body: bodyParams.toString(),
         })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.tokens) {
-              const tokens = data.tokens;
-              localStorage.setItem("qbo_access_token", tokens.access_token);
-              localStorage.setItem("qbo_refresh_token", tokens.refresh_token);
-              localStorage.setItem("qbo_realm_id", tokens.realmId);
+          .then(async (res) => {
+            const data = await res.json();
+            if (res.ok && data.access_token) {
+              localStorage.setItem("qbo_access_token", data.access_token);
+              if (data.refresh_token) localStorage.setItem("qbo_refresh_token", data.refresh_token);
+              localStorage.setItem("qbo_realm_id", qboRealmIdParam);
               localStorage.setItem("qbo_environment", storedEnv);
 
-              setQboAccessToken(tokens.access_token);
-              setQboRefreshToken(tokens.refresh_token);
-              setQboRealmId(tokens.realmId);
+              setQboAccessToken(data.access_token);
+              if (data.refresh_token) setQboRefreshToken(data.refresh_token);
+              setQboRealmId(qboRealmIdParam);
               setQboEnvironment(storedEnv);
               setIsQboConnected(true);
 
               setQboTestResult({
                 success: true,
-                message: `QuickBooks connected successfully! Company Realm ID: ${tokens.realmId}`,
+                message: `QuickBooks connected successfully! Company Realm ID: ${qboRealmIdParam}`,
               });
 
               localStorage.setItem("active_invoicing_provider", "quickbooks");
@@ -121,14 +125,17 @@ export default function SettingsPage() {
             } else {
               setQboTestResult({
                 success: false,
-                message: data.error || "Failed to exchange QuickBooks tokens.",
+                message:
+                  data.error_description ||
+                  data.error ||
+                  `Failed to exchange token with Intuit (${res.status})`,
               });
             }
           })
           .catch((err) => {
             setQboTestResult({
               success: false,
-              message: err.message || "Failed to exchange tokens",
+              message: err.message || "Failed to exchange tokens with Intuit.",
             });
           })
           .finally(() => setTestingQbo(false));
