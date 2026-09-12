@@ -346,6 +346,8 @@ export default function HomePage() {
           body: JSON.stringify({
             invoiceId: invoice.id,
             to: recipients,
+            subject: emailData.subject,
+            message: emailData.message,
           }),
         });
 

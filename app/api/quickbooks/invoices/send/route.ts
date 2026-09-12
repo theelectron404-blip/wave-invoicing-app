@@ -16,13 +16,46 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { invoiceId, to } = body;
+    const { invoiceId, to, subject, message } = body;
 
     if (!invoiceId) {
       return NextResponse.json(
         { success: false, error: "invoiceId is required." },
         { status: 400 }
       );
+    }
+
+    // If subject or message provided, update QuickBooks company email template preferences before sending
+    if (subject || message) {
+      try {
+        const prefRes = await qboApiRequest<any>("/preferences", {
+          realmId,
+          accessToken,
+          environment,
+        });
+
+        if (prefRes?.Preferences) {
+          const prefs = prefRes.Preferences;
+          const emailMessagesPrefs = prefs.EmailMessagesPrefs || {};
+          const invoiceMsg = emailMessagesPrefs.InvoiceMessage || {};
+
+          if (subject) invoiceMsg.Subject = subject;
+          if (message) invoiceMsg.Message = message;
+
+          emailMessagesPrefs.InvoiceMessage = invoiceMsg;
+          prefs.EmailMessagesPrefs = emailMessagesPrefs;
+
+          await qboApiRequest<any>("/preferences", {
+            method: "POST",
+            body: prefs,
+            realmId,
+            accessToken,
+            environment,
+          });
+        }
+      } catch (prefErr) {
+        console.warn("Could not update QBO email preferences before send:", prefErr);
+      }
     }
 
     const recipientEmail = Array.isArray(to) ? to[0] : to;

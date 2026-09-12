@@ -341,6 +341,8 @@ export default function BulkInvoicingPage() {
             body: JSON.stringify({
               invoiceId: invoice.id,
               to: [item.customerEmail],
+              subject: personalizedSubject,
+              message: personalizedBody,
             }),
           });
 
