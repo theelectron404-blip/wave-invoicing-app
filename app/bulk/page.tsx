@@ -326,26 +326,47 @@ export default function BulkInvoicingPage() {
       const invoice = invoiceData.invoice;
 
       if (item.customerEmail) {
-        const sendRes = await fetch("/api/quickbooks/invoices/send", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-qbo-realm-id": realmId,
-            "x-qbo-access-token": accessToken,
-            "x-qbo-environment": environment,
-          },
-          body: JSON.stringify({
-            invoiceId: invoice.id,
-            to: [item.customerEmail],
-          }),
-        });
+        let sendSuccess = false;
+        let lastError = "";
 
-        const sendData = await sendRes.json();
-        if (!sendRes.ok || !sendData.success) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const sendRes = await fetch("/api/quickbooks/invoices/send", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-qbo-realm-id": realmId,
+              "x-qbo-access-token": accessToken,
+              "x-qbo-environment": environment,
+            },
+            body: JSON.stringify({
+              invoiceId: invoice.id,
+              to: [item.customerEmail],
+            }),
+          });
+
+          const sendData = await sendRes.json();
+          if (sendRes.ok && sendData.success) {
+            sendSuccess = true;
+            break;
+          }
+
+          lastError = sendData.error || "Unknown error";
+
+          if (
+            (lastError.toLowerCase().includes("rate limit") ||
+              lastError.toLowerCase().includes("too many requests") ||
+              lastError.toLowerCase().includes("throttle")) &&
+            attempt < 3
+          ) {
+            await new Promise((r) => setTimeout(r, attempt * 6000));
+          } else {
+            break;
+          }
+        }
+
+        if (!sendSuccess) {
           throw new Error(
-            `Invoice created in QuickBooks, but email dispatch failed: ${
-              sendData.error || "Unknown error"
-            }`
+            `Invoice created in QuickBooks (#${invoice.invoiceNumber}), but email dispatch failed: ${lastError}`
           );
         }
       }
